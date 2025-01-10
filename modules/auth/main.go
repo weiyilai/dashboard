@@ -27,6 +27,7 @@ import (
 	// Importing route packages forces route registration
 	_ "k8s.io/dashboard/auth/pkg/routes/csrftoken"
 	_ "k8s.io/dashboard/auth/pkg/routes/login"
+	_ "k8s.io/dashboard/auth/pkg/routes/me"
 )
 
 func main() {
@@ -35,6 +36,8 @@ func main() {
 	client.Init(
 		client.WithUserAgent(environment.UserAgent()),
 		client.WithKubeconfig(args.KubeconfigPath()),
+		client.WithMasterUrl(args.ApiServerHost()),
+		client.WithInsecureTLSSkipVerify(args.ApiServerSkipTLSVerify()),
 	)
 
 	klog.V(1).InfoS("Listening and serving insecurely on", "address", args.Address())

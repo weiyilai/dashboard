@@ -15,6 +15,11 @@
 package helpers
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base32"
+	"encoding/base64"
+	"encoding/json"
 	"os"
 	"strings"
 )
@@ -41,4 +46,25 @@ func GetResourceFromPath(path string) *string {
 	}
 
 	return &parts[3]
+}
+
+func RandomBytes(size int) []byte {
+	bytes := make([]byte, size)
+	_, _ = rand.Read(bytes)
+
+	return bytes
+}
+
+func Random64BaseEncodedBytes(size int) string {
+	bytes := RandomBytes(size)
+	return base64.StdEncoding.EncodeToString(bytes)
+}
+
+func HashObject(any interface{}) (string, error) {
+	out, err := json.Marshal(any)
+	if err != nil {
+		return "", err
+	}
+	sha := sha256.Sum256(out)
+	return base32.StdEncoding.EncodeToString(sha[:]), nil
 }

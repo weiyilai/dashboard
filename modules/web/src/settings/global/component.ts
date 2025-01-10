@@ -19,7 +19,7 @@ import {MatDialog} from '@angular/material/dialog';
 import {GlobalSettings, NamespaceList} from '@api/root.api';
 import isEqual from 'lodash-es/isEqual';
 import {Observable, of} from 'rxjs';
-import {catchError, take, tap} from 'rxjs/operators';
+import {catchError, switchMap, take, tap} from 'rxjs/operators';
 
 import {GlobalSettingsService} from '@common/services/global/globalsettings';
 import {TitleService} from '@common/services/global/title';
@@ -28,6 +28,8 @@ import {ResourceService} from '@common/services/resource/resource';
 import {SaveAnywayDialogComponent} from './saveanywaysdialog/dialog';
 import {SettingsHelperService} from './service';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {AlertDialogComponent} from '@common/dialogs/alert/dialog';
+import {AsKdError} from '@common/errors/errors';
 
 enum Controls {
   ClusterName = 'clusterName',
@@ -37,6 +39,7 @@ enum Controls {
   ResourceAutorefreshInterval = 'resourceAutorefreshInterval',
   DisableAccessDeniedNotification = 'disableAccessDeniedNotification',
   NamespaceSettings = 'namespaceSettings',
+  HideAllNamespaces = 'hideAllNamespaces',
 }
 
 @Component({
@@ -55,6 +58,7 @@ export class GlobalSettingsComponent implements OnInit {
   private readonly concurrentChangeErr_ = 'settings changed since last reload';
 
   private destroyRef = inject(DestroyRef);
+
   constructor(
     private readonly settingsService_: GlobalSettingsService,
     private readonly settingsHelperService_: SettingsHelperService,
@@ -73,6 +77,7 @@ export class GlobalSettingsComponent implements OnInit {
     settings.logsAutoRefreshTimeInterval = this.settingsService_.getLogsAutoRefreshTimeInterval();
     settings.resourceAutoRefreshTimeInterval = this.settingsService_.getResourceAutoRefreshTimeInterval();
     settings.disableAccessDeniedNotifications = this.settingsService_.getDisableAccessDeniedNotifications();
+    settings.hideAllNamespaces = this.settingsService_.getHideAllNamespaces();
     settings.defaultNamespace = this.settingsService_.getDefaultNamespace();
     settings.namespaceFallbackList = this.settingsService_.getNamespaceFallbackList();
 
@@ -87,6 +92,7 @@ export class GlobalSettingsComponent implements OnInit {
       [Controls.LogsAutorefreshInterval]: this.builder_.control(0),
       [Controls.ResourceAutorefreshInterval]: this.builder_.control(0),
       [Controls.DisableAccessDeniedNotification]: this.builder_.control(false),
+      [Controls.HideAllNamespaces]: this.builder_.control(false),
       [Controls.NamespaceSettings]: this.builder_.control(''),
     });
 
@@ -135,11 +141,22 @@ export class GlobalSettingsComponent implements OnInit {
   }
 
   private onSaveError_(err: HttpErrorResponse): Observable<boolean> {
-    if (err && err.error.indexOf(this.concurrentChangeErr_) !== -1) {
+    const kdError = AsKdError(err);
+    if (kdError.message.indexOf(this.concurrentChangeErr_) !== -1) {
       return this.dialog_.open(SaveAnywayDialogComponent, {width: '420px'}).afterClosed();
     }
 
-    return of(false);
+    this.reload();
+    return this.dialog_
+      .open(AlertDialogComponent, {
+        data: {
+          title: 'Could not save settings',
+          message: `${kdError.message}`,
+          confirmLabel: 'Close',
+        },
+      })
+      .afterClosed()
+      .pipe(switchMap(_ => of(false)));
   }
 
   private load_(): void {
@@ -166,6 +183,7 @@ export class GlobalSettingsComponent implements OnInit {
     this.form
       .get(Controls.DisableAccessDeniedNotification)
       .setValue(this.settings.disableAccessDeniedNotifications, {emitEvent: false});
+    this.form.get(Controls.HideAllNamespaces).setValue(this.settings.hideAllNamespaces, {emitEvent: false});
   }
 
   private onLoadError_(): void {
@@ -177,6 +195,7 @@ export class GlobalSettingsComponent implements OnInit {
       itemsPerPage: this.form.get(Controls.ItemsPerPage).value,
       clusterName: this.form.get(Controls.ClusterName).value,
       disableAccessDeniedNotifications: this.form.get(Controls.DisableAccessDeniedNotification).value,
+      hideAllNamespaces: this.form.get(Controls.HideAllNamespaces).value,
       labelsLimit: this.form.get(Controls.LabelsLimit).value,
       logsAutoRefreshTimeInterval: this.form.get(Controls.LogsAutorefreshInterval).value,
       resourceAutoRefreshTimeInterval: this.form.get(Controls.ResourceAutorefreshInterval).value,

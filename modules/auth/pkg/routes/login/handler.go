@@ -26,7 +26,6 @@ import (
 
 func init() {
 	router.V1().POST("/login", handleLogin)
-	router.V1().GET("/login/status", handleLoginStatus)
 }
 
 func handleLogin(c *gin.Context) {
@@ -46,8 +45,4 @@ func handleLogin(c *gin.Context) {
 	}
 
 	c.JSON(code, response)
-}
-
-func handleLoginStatus(c *gin.Context) {
-	c.JSON(http.StatusOK, "OK")
 }

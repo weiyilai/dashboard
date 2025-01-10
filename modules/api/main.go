@@ -20,6 +20,9 @@ import (
 	"net/http"
 	"time"
 
+	restfulspec "github.com/emicklei/go-restful-openapi/v2"
+	"github.com/emicklei/go-restful/v3"
+	"github.com/go-openapi/spec"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"k8s.io/klog/v2"
 
@@ -43,32 +46,29 @@ func main() {
 		client.WithInsecureTLSSkipVerify(args.ApiServerSkipTLSVerify()),
 	)
 
-	versionInfo, err := client.InClusterClient().Discovery().ServerVersion()
-	if err != nil {
-		handleFatalInitError(err)
+	if !args.IsProxyEnabled() {
+		ensureAPIServerConnectionOrDie()
+	} else {
+		klog.Info("Running in proxy mode. InClusterClient connections will be disabled.")
 	}
-
-	klog.InfoS("Successful initial request to the apiserver", "version", versionInfo.String())
 
 	// Init integrations
 	integrationManager := integration.NewIntegrationManager()
 
-	switch metricsProvider := args.MetricsProvider(); metricsProvider {
-	case "sidecar":
-		integrationManager.Metric().ConfigureSidecar(args.SidecarHost()).
-			EnableWithRetry(integrationapi.SidecarIntegrationID, time.Duration(args.MetricClientHealthCheckPeriod()))
-	case "none":
-		klog.Info("Metrics provider disabled")
-	default:
-		klog.InfoS("Invalid metrics provider", "provider", metricsProvider)
-		klog.Info("Using default metrics provider", "provider", "sidecar")
-		integrationManager.Metric().ConfigureSidecar(args.SidecarHost()).
-			EnableWithRetry(integrationapi.SidecarIntegrationID, time.Duration(args.MetricClientHealthCheckPeriod()))
+	if !args.IsProxyEnabled() {
+		configureMetricsProvider(integrationManager)
+	} else {
+		klog.Info("Skipping metrics configuration. Metrics not available in proxy mode.")
 	}
 
 	apiHandler, err := handler.CreateHTTPAPIHandler(integrationManager)
 	if err != nil {
 		handleFatalInitError(err)
+	}
+
+	if args.IsOpenAPIEnabled() {
+		klog.Info("Enabling OpenAPI endpoint on /apidocs.json")
+		configureOpenAPI(apiHandler)
 	}
 
 	certCreator := ecdsa.NewECDSACreator(args.KeyFile(), args.CertFile(), elliptic.P256())
@@ -78,7 +78,7 @@ func main() {
 		handleFatalInitServingCertError(err)
 	}
 
-	http.Handle("/api/", apiHandler)
+	http.Handle("/", apiHandler)
 	http.Handle("/api/sockjs/", handler.CreateAttachHandler("/api/sockjs"))
 	http.Handle("/metrics", promhttp.Handler())
 
@@ -107,6 +107,48 @@ func serveTLS(certificates []tls.Certificate) {
 		},
 	}
 	go func() { klog.Fatal(server.ListenAndServeTLS("", "")) }()
+}
+
+func ensureAPIServerConnectionOrDie() {
+	versionInfo, err := client.InClusterClient().Discovery().ServerVersion()
+	if err != nil {
+		handleFatalInitError(err)
+	}
+
+	klog.InfoS("Successful initial request to the apiserver", "version", versionInfo.String())
+}
+
+func configureMetricsProvider(integrationManager integration.Manager) {
+	switch metricsProvider := args.MetricsProvider(); metricsProvider {
+	case "sidecar":
+		integrationManager.Metric().ConfigureSidecar(args.SidecarHost()).
+			EnableWithRetry(integrationapi.SidecarIntegrationID, time.Duration(args.MetricClientHealthCheckPeriod()))
+	case "none":
+		klog.Info("Metrics provider disabled")
+	default:
+		klog.InfoS("Invalid metrics provider", "provider", metricsProvider)
+		klog.Info("Using default metrics provider", "provider", "sidecar")
+		integrationManager.Metric().ConfigureSidecar(args.SidecarHost()).
+			EnableWithRetry(integrationapi.SidecarIntegrationID, time.Duration(args.MetricClientHealthCheckPeriod()))
+	}
+}
+
+func configureOpenAPI(container *restful.Container) {
+	config := restfulspec.Config{
+		WebServices:                   container.RegisteredWebServices(),
+		APIPath:                       "/apidocs.json",
+		PostBuildSwaggerObjectHandler: enrichOpenAPIObject,
+	}
+	container.Add(restfulspec.NewOpenAPIService(config))
+}
+
+func enrichOpenAPIObject(swo *spec.Swagger) {
+	swo.Info = &spec.Info{
+		InfoProps: spec.InfoProps{
+			Title:   "Kubernetes Dashboard API",
+			Version: environment.Version,
+		},
+	}
 }
 
 /**
