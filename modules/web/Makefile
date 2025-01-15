@@ -26,10 +26,10 @@ clean:
 coverage: coverage-frontend coverage-go
 
 .PHONY: fix
-fix: fix-go
+fix: fix-frontend fix-go
 
 .PHONY: test
-test: test-go
+test: test-frontend test-go
 
 # ==================== LOCAL ==================== #
 
@@ -62,15 +62,34 @@ coverage-go: --ensure-dir
 	@echo "[$(APP_NAME)] Running tests with coverage"
 	@go test -coverprofile=$(COVERAGE_FILE) -covermode=atomic $(PACKAGE_NAME)/...
 
+.PHONY: fix-frontend
+fix-frontend: $(PRE)
+	@echo "[$(APP_NAME)] Running yarn fix"
+	@yarn fix
+
 .PHONY: fix-go
 fix-go: $(PRE)
 	@echo "[$(APP_NAME)] Running lint --fix"
 	@golangci-lint run -c $(GOLANGCI_LINT_CONFIG) --fix ./...
 
+.PHONY: test-frontend
+test-frontend:
+	@echo "[$(APP_NAME)] Running frontend tests"
+	@yarn test
+
 .PHONY: test-go
 test-go:
 	@echo "[$(APP_NAME)] Running tests"
 	@go test $(PACKAGE_NAME)/...
+
+.PHONY: schema
+schema:
+	@echo "[$(APP_NAME)] Generating GraphQL schema"
+	@npx graphql-mesh build --fileType json
+	@chmod +rwx .mesh/schema.graphql
+	@mv .mesh/schema.graphql $(SCHEMA_DIRECTORY)/schema.graphql
+	@rm -rf .mesh
+	@echo "[$(APP_NAME)] GraphQL schema generated successfully"
 
 # ==================== PRIVATE ==================== #
 

@@ -78,7 +78,7 @@ func localeHandler(urlPrefix string) gin.HandlerFunc {
 
 		// Fallback to index.html if request file does not exist.
 		if !directory.Exists(urlPrefix, c.Request.URL.Path) {
-			klog.InfoS("Directory does not exist", "directory", directory, "dirName", dirName, "acceptLanguage", acceptLanguage)
+			klog.V(2).InfoS("Directory does not exist", "directory", directory, "dirName", dirName, "acceptLanguage", acceptLanguage, "urlPath", c.Request.URL.Path, "urlPrefix", urlPrefix)
 			c.Request.URL.Path = "/"
 		}
 
@@ -177,7 +177,7 @@ func getLocaleMap() map[string]struct{} {
 func dirExists(name string) bool {
 	if _, err := os.Stat(name); err != nil {
 		if os.IsNotExist(err) {
-			klog.Warningf(name)
+			klog.Warning(name)
 			return false
 		}
 	}

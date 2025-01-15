@@ -26,8 +26,9 @@ var defaultSettings = Settings{
 	ItemsPerPage:                     lo.ToPtr(10),
 	LabelsLimit:                      lo.ToPtr(3),
 	LogsAutoRefreshTimeInterval:      lo.ToPtr(5),
-	ResourceAutoRefreshTimeInterval:  lo.ToPtr(5),
+	ResourceAutoRefreshTimeInterval:  lo.ToPtr(10),
 	DisableAccessDeniedNotifications: lo.ToPtr(false),
+	HideAllNamespaces:                lo.ToPtr(false),
 	DefaultNamespace:                 lo.ToPtr("default"),
 	NamespaceFallbackList:            []string{"default"},
 }
@@ -39,6 +40,7 @@ type Settings struct {
 	LogsAutoRefreshTimeInterval      *int     `json:"logsAutoRefreshTimeInterval,omitempty"`
 	ResourceAutoRefreshTimeInterval  *int     `json:"resourceAutoRefreshTimeInterval,omitempty"`
 	DisableAccessDeniedNotifications *bool    `json:"disableAccessDeniedNotifications,omitempty"`
+	HideAllNamespaces                *bool    `json:"hideAllNamespaces,omitempty"`
 	DefaultNamespace                 *string  `json:"defaultNamespace,omitempty"`
 	NamespaceFallbackList            []string `json:"namespaceFallbackList,omitempty"`
 }

@@ -32,6 +32,12 @@ export interface ObjectMeta {
   annotations?: StringMap;
   creationTimestamp?: string;
   uid?: string;
+  ownerReferences?: Array<OwnerReference>;
+}
+
+export interface OwnerReference {
+  kind?: string;
+  name?: string;
 }
 
 export interface JobStatus {
@@ -185,6 +191,7 @@ export interface ReplicaSetList extends ResourceList {
 }
 
 export interface ReplicationControllerList extends ResourceList {
+  cumulativeMetrics: Metric[] | null;
   replicationControllers: ReplicationController[];
   status: Status;
 }
@@ -1222,6 +1229,7 @@ export interface GlobalSettings {
   logsAutoRefreshTimeInterval: number;
   resourceAutoRefreshTimeInterval: number;
   disableAccessDeniedNotifications: boolean;
+  hideAllNamespaces: boolean;
   defaultNamespace: string;
   namespaceFallbackList: string[];
 }
@@ -1294,4 +1302,9 @@ export interface SJSCloseEvent extends SockJSSimpleEvent {
 
 export interface SJSMessageEvent extends SockJSSimpleEvent {
   data: string;
+}
+
+export interface User {
+  name: string;
+  authenticated: boolean;
 }

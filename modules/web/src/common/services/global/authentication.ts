@@ -17,14 +17,14 @@ import {Inject, Injectable} from '@angular/core';
 import {Router} from '@angular/router';
 import {IConfig} from '@api/root.ui';
 import {CookieService} from 'ngx-cookie-service';
-import {of} from 'rxjs';
 import {Observable} from 'rxjs';
 import {switchMap} from 'rxjs/operators';
-import {AuthResponse, CsrfToken, LoginSpec} from 'typings/root.api';
+import {AuthResponse, CsrfToken, LoginSpec, User} from 'typings/root.api';
 import {CONFIG_DI_TOKEN} from '../../../index.config';
 import {CsrfTokenService} from './csrftoken';
 import {KdStateService} from './state';
 import isEmpty from 'lodash-es/isEmpty';
+import {MeService} from '@common/services/global/me';
 
 @Injectable()
 export class AuthService {
@@ -36,6 +36,7 @@ export class AuthService {
     private readonly http_: HttpClient,
     private readonly csrfTokenService_: CsrfTokenService,
     private readonly stateService_: KdStateService,
+    private readonly _meService: MeService,
     @Inject(CONFIG_DI_TOKEN) private readonly config_: IConfig
   ) {
     this.stateService_.onBefore.subscribe(_ => this.refreshToken());
@@ -44,7 +45,7 @@ export class AuthService {
   /**
    * Sends a login request to the backend with filled in login spec structure.
    */
-  login(loginSpec: LoginSpec): Observable<void> {
+  login(loginSpec: LoginSpec): Observable<User> {
     return this.csrfTokenService_
       .getTokenForAction('login')
       .pipe(
@@ -60,13 +61,14 @@ export class AuthService {
             this.setTokenCookie_(authResponse.token);
           }
 
-          return of(void 0);
+          return this._meService.refresh();
         })
       );
   }
 
   logout(): void {
     this.removeTokenCookie();
+    this._meService.reset();
     this.router_.navigate(['login']);
   }
 
@@ -99,15 +101,11 @@ export class AuthService {
   }
 
   isAuthenticated(): boolean {
-    return this.hasAuthHeader() || this.hasTokenCookie();
+    return this._meService.getUser().authenticated || this.hasTokenCookie();
   }
 
   hasAuthHeader(): boolean {
-    return this._hasAuthHeader;
-  }
-
-  setHasAuthHeader(hasAuthHeader: boolean) {
-    this._hasAuthHeader = hasAuthHeader;
+    return this._meService.getUser().authenticated && !this.hasTokenCookie();
   }
 
   private getTokenCookie(): string {
