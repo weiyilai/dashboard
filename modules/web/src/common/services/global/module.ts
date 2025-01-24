@@ -36,6 +36,7 @@ import {ThemeService} from './theme';
 import {TitleService} from './title';
 import {VerberService} from './verber';
 import {PinnerService} from './pinner';
+import {MeService} from '@common/services/global/me';
 
 @NgModule({
   providers: [
@@ -46,6 +47,7 @@ import {PinnerService} from './pinner';
     ConfigService,
     TitleService,
     AuthService,
+    MeService,
     CsrfTokenService,
     NotificationsService,
     ThemeService,
@@ -70,6 +72,7 @@ import {PinnerService} from './pinner';
         PinnerService,
         ThemeService,
         LocalConfigLoaderService,
+        MeService,
       ],
       multi: true,
     },
@@ -82,6 +85,7 @@ import {PinnerService} from './pinner';
 })
 export class GlobalServicesModule {
   static injector: Injector;
+
   constructor(injector: Injector) {
     GlobalServicesModule.injector = injector;
   }
@@ -94,16 +98,17 @@ export function init(
   config: ConfigService,
   history: HistoryService,
   theme: ThemeService,
-  loader: LocalConfigLoaderService
+  loader: LocalConfigLoaderService,
+  me: MeService
 ): Function {
-  return () => {
-    return loader.init().then(() => {
-      localSettings.init();
-      pinner.init();
-      config.init();
-      history.init();
-      theme.init();
-      return globalSettings.init();
-    });
+  return async () => {
+    await loader.init();
+    localSettings.init();
+    pinner.init();
+    config.init();
+    history.init();
+    theme.init();
+    await me.init();
+    return await globalSettings.init();
   };
 }

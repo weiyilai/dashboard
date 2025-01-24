@@ -12,25 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{{ if .Values.app.security.networkPolicy.enabled }}
+{{- if .Values.app.security.networkPolicy.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ template "kubernetes-dashboard.fullname" . }}
   labels:
-  {{- include "kubernetes-dashboard.labels" . | nindent 4 }}
-  {{- if .Values.app.labels }}
-  {{- include "common.tplvalues.render" ( dict "value" .Values.app.labels "context" $ ) | nindent 4 }}
-  {{- end }}
+    {{- include "kubernetes-dashboard.labels" . | nindent 4 }}
   annotations:
-  {{- if .Values.app.annotations }}
-  {{- include "common.tplvalues.render" ( dict "value" .Values.app.annotations "context" $ ) | nindent 4 }}
-  {{- end }}
+    {{- include "kubernetes-dashboard.annotations" . | nindent 4 }}
+  name: {{ template "kubernetes-dashboard.fullname" . }}
 spec:
   podSelector:
     matchLabels:
-    {{ include "kubernetes-dashboard.matchLabels" . | nindent 6 }}
-  {{ if .Values.app.security.networkPolicy.ingressDenyAll }}
+    {{- include "kubernetes-dashboard.matchLabels" . | nindent 6 -}}
+  {{- if .Values.app.security.networkPolicy.spec }}
+    {{- with .Values.app.security.networkPolicy.spec }}
+    {{- toYaml . | nindent 2 }}
+    {{- end }}
+  {{ else }}
+    {{- if .Values.app.security.networkPolicy.ingressDenyAll }}
   ingress: [ ]
     {{ else }}
   ingress:
@@ -39,5 +39,6 @@ spec:
         protocol: TCP
       - port: {{ $.Values.api.role }}
         protocol: TCP
+    {{ end }}
   {{ end }}
 {{ end }}

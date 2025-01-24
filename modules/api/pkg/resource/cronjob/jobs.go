@@ -114,16 +114,11 @@ func TriggerCronJob(client client.Interface,
 
 	jobToCreate := &batch.Job{
 		ObjectMeta: meta.ObjectMeta{
-			Name:        newJobName,
-			Namespace:   namespace,
-			Annotations: annotations,
-			Labels:      labels,
-			OwnerReferences: []meta.OwnerReference{{
-				APIVersion: CronJobAPIVersion,
-				Kind:       CronJobKindName,
-				Name:       cronJob.Name,
-				UID:        cronJob.UID,
-			}},
+			Name:            newJobName,
+			Namespace:       namespace,
+			Annotations:     annotations,
+			Labels:          labels,
+			OwnerReferences: []meta.OwnerReference{*meta.NewControllerRef(cronJob, batch.SchemeGroupVersion.WithKind("CronJob"))},
 		},
 		Spec: cronJob.Spec.JobTemplate.Spec,
 	}
@@ -155,8 +150,6 @@ func filterJobsByState(active bool, jobs []batch.Job) (matchingJobs []batch.Job)
 			matchingJobs = append(matchingJobs, j)
 		} else if !active && j.Status.Active == 0 {
 			matchingJobs = append(matchingJobs, j)
-		} else {
-			//sup
 		}
 	}
 	return

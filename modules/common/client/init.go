@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 	"k8s.io/klog/v2"
 
+	"k8s.io/dashboard/client/args"
 	"k8s.io/dashboard/errors"
 )
 
@@ -42,10 +43,11 @@ type configBuilder struct {
 	insecure       bool
 }
 
-func (in *configBuilder) buildBaseConfig() (*rest.Config, error) {
+func (in *configBuilder) buildBaseConfig() (config *rest.Config, err error) {
 	if len(in.kubeconfigPath) == 0 && len(in.masterUrl) == 0 {
 		klog.Info("Using in-cluster config")
-		return rest.InClusterConfig()
+		config, err = rest.InClusterConfig()
+		return in.setConfigDefaults(config), err
 	}
 
 	if len(in.kubeconfigPath) > 0 {
@@ -56,18 +58,35 @@ func (in *configBuilder) buildBaseConfig() (*rest.Config, error) {
 		klog.InfoS("Using apiserver-host location", "masterUrl", in.masterUrl)
 	}
 
-	config, err := clientcmd.BuildConfigFromFlags(in.masterUrl, in.kubeconfigPath)
+	config, err = clientcmd.BuildConfigFromFlags(in.masterUrl, in.kubeconfigPath)
 	if err != nil {
 		return nil, err
 	}
 
-	config.QPS = DefaultQPS
-	config.Burst = DefaultBurst
+	return in.setConfigDefaults(config), nil
+}
+
+func (in *configBuilder) setConfigDefaults(config *rest.Config) *rest.Config {
+	if config == nil {
+		return nil
+	}
+
 	config.ContentType = DefaultContentType
 	config.UserAgent = DefaultUserAgent + "/" + in.userAgent
 	config.TLSClientConfig.Insecure = in.insecure
 
-	return config, nil
+	return setConfigRateLimitDefaults(config)
+}
+
+func setConfigRateLimitDefaults(config *rest.Config) *rest.Config {
+	if config == nil {
+		return nil
+	}
+
+	config.QPS = DefaultQPS
+	config.Burst = DefaultBurst
+
+	return config
 }
 
 func newConfigBuilder(options ...Option) *configBuilder {
@@ -111,15 +130,6 @@ func configFromRequest(request *http.Request) (*rest.Config, error) {
 	}
 
 	return buildConfigFromAuthInfo(authInfo)
-}
-
-func clientFromRequest(request *http.Request) (client.Interface, error) {
-	config, err := configFromRequest(request)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.NewForConfig(config)
 }
 
 func buildConfigFromAuthInfo(authInfo *api.AuthInfo) (*rest.Config, error) {
@@ -188,8 +198,9 @@ func handleImpersonation(authInfo *api.AuthInfo, request *http.Request) {
 }
 
 func Init(options ...Option) {
-	builder := newConfigBuilder(options...)
+	args.Ensure()
 
+	builder := newConfigBuilder(options...)
 	config, err := builder.buildBaseConfig()
 	if err != nil {
 		klog.Errorf("Could not init kubernetes client config: %s", err)
@@ -201,7 +212,7 @@ func Init(options ...Option) {
 
 func isInitialized() bool {
 	if baseConfig == nil {
-		klog.Errorf(`k8s.io/dasboard/client' package has not been initialized properly. Run 'client.Init(...)' to initialize it. `)
+		klog.Errorf(`k8s.io/dashboard/client' package has not been initialized properly. Run 'client.Init(...)' to initialize it. `)
 		return false
 	}
 
