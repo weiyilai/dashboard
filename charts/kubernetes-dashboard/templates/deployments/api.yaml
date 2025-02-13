@@ -18,15 +18,20 @@ metadata:
   labels:
     {{- include "kubernetes-dashboard.labels" . | nindent 4 }}
     {{- with .Values.api.labels }}
-    {{ toYaml . | nindent 4 }}
+    {{- toYaml . | nindent 4 }}
     {{- end }}
     app.kubernetes.io/name: {{ template "kubernetes-dashboard.name" . }}-{{ .Values.api.role }}
     app.kubernetes.io/version: {{ .Values.api.image.tag }}
     app.kubernetes.io/component: {{ .Values.api.role }}
+  annotations:
+    {{- include "kubernetes-dashboard.annotations" . | nindent 4 }}
+    {{- with .Values.api.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   name: {{ template "kubernetes-dashboard.fullname" . }}-{{ .Values.api.role }}
 spec:
-  replicas: {{ .Values.app.scaling.replicas }}
-  revisionHistoryLimit: {{ .Values.app.scaling.revisionHistoryLimit }}
+  replicas: {{ .Values.api.scaling.replicas }}
+  revisionHistoryLimit: {{ .Values.api.scaling.revisionHistoryLimit }}
   selector:
     matchLabels:
       {{- include "kubernetes-dashboard.matchLabels" . | nindent 6 }}
@@ -41,19 +46,46 @@ spec:
         app.kubernetes.io/name: {{ template "kubernetes-dashboard.name" . }}-{{ .Values.api.role }}
         app.kubernetes.io/version: {{ .Values.api.image.tag }}
         app.kubernetes.io/component: {{ .Values.api.role }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/secrets/csrf.yaml") . | sha256sum }}
+        {{- with .Values.api.annotations }}
+        {{ toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       containers:
         - name: {{ template "kubernetes-dashboard.name" . }}-{{ .Values.api.role }}
           image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
           imagePullPolicy: {{ .Values.app.image.pullPolicy }}
           args:
-{{/*            - --namespace={{ .Release.Namespace }}*/}}
+            - --namespace={{ .Release.Namespace }}
+            - --metrics-scraper-service-name={{ template "kubernetes-dashboard.metrics-scraper.name" . }}
           {{- with .Values.api.containers.args }}
           {{ toYaml . | nindent 12 }}
           {{- end }}
 
-          {{- with .Values.api.containers.env }}
           env:
+            - name: CSRF_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "kubernetes-dashboard.app.csrf.secret.name" . }}
+                  key: {{ template "kubernetes-dashboard.app.csrf.secret.key" . }}
+
+            {{- if .Values.api.containers.resources.limits.cpu }}
+            - name: GOMAXPROCS
+              valueFrom:
+                resourceFieldRef:
+                  resource: limits.cpu
+                  divisor: "1"
+            {{- end }}
+            {{- if .Values.api.containers.resources.limits.memory }}
+            - name: GOMEMLIMIT
+              valueFrom:
+                resourceFieldRef:
+                  resource: limits.memory
+                  divisor: "1"
+            {{- end }}
+
+          {{- with .Values.api.containers.env }}
           {{ toYaml . | nindent 12 }}
           {{- end }}
 
@@ -76,6 +108,16 @@ spec:
           resources:
           {{ toYaml . | nindent 12 }}
           {{- end }}
+
+      {{- with .Values.app.image.pullSecrets }}
+      imagePullSecrets:
+      {{- range . }}
+        - name: {{ . }}
+      {{- end }}
+      {{- end }}
+
+      automountServiceAccountToken: {{ .Values.api.automountServiceAccountToken }}
+
       {{- with .Values.app.security.securityContext }}
       securityContext:
       {{ toYaml . | nindent 8 }}
@@ -86,12 +128,18 @@ spec:
       {{ toYaml . | nindent 8 }}
       {{- end }}
 
-      {{- with .Values.api.nodeSelector }}
+      {{- with .Values.app.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+
+      {{- if or .Values.api.nodeSelector .Values.app.scheduling.nodeSelector }}
       nodeSelector:
+      {{- with .Values.api.nodeSelector }}
       {{ toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.app.scheduling.nodeSelector }}
       {{ toYaml . | nindent 8 }}
+      {{- end }}
       {{- end }}
 
       {{- with .Values.app.tolerations }}
@@ -99,4 +147,11 @@ spec:
       {{ toYaml . | nindent 8 }}
       {{- end }}
 
-      serviceAccountName: {{ template "kubernetes-dashboard.fullname" . }}
+      {{- with .Values.app.affinity }}
+      affinity:
+      {{ toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- if eq .Values.app.mode "dashboard" }}
+      serviceAccountName: {{ template "kubernetes-dashboard.fullname" . }}-{{ .Values.api.role }}
+      {{- end -}}

@@ -12,12 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-version: "3.8"
-
 services:
   gateway:
     container_name: kong-gateway
-    image: kong/kong-gateway:3.6
+    image: kong/kong-gateway:3.8
     environment:
       - "KONG_DATABASE=off"
       - "KONG_PROXY_ACCESS_LOG=/dev/stdout"
@@ -42,7 +40,7 @@ services:
     command:
       - "--kubeconfig=${KUBECONFIG:?}"
     volumes:
-      - ${KUBECONFIG:?}:${KUBECONFIG:?} # Required - local kubeconfig path resolves to $HOME/<user>/.kube/config
+      - ${KUBECONFIG:?}:${KUBECONFIG:?} # Required - tmp kubeconfig path resolves to $DASHBOARD_DIR/.tmp/kubeconfig
     tmpfs:
       - /tmp
 
@@ -57,7 +55,7 @@ services:
       --kubeconfig=${KUBECONFIG:?}
       --sidecar-host=${SIDECAR_HOST:?}
     volumes:
-      - ${KUBECONFIG:?}:${KUBECONFIG:?} # Required - local kubeconfig path resolves to $HOME/<user>/.kube/config
+      - ${KUBECONFIG:?}:${KUBECONFIG:?} # Required - tmp kubeconfig path resolves to $DASHBOARD_DIR/.tmp/kubeconfig
     tmpfs:
       - /tmp
 
@@ -68,13 +66,13 @@ services:
       dockerfile: modules/web/Dockerfile
       args:
         VERSION: ${VERSION:?}
+        WEB_BUILDER_ARCH: ${WEB_BUILDER_ARCH:?}
     command:
       - "--kubeconfig=${KUBECONFIG:?}"
-      - "--locale-config=/public/locale_conf.json"
       - "--system-banner=${SYSTEM_BANNER:?}"
       - "--system-banner-severity=${SYSTEM_BANNER_SEVERITY:?}"
     volumes:
-      - ${KUBECONFIG:?}:${KUBECONFIG:?} # Required - local kubeconfig path resolves to $HOME/<user>/.kube/config
+      - ${KUBECONFIG:?}:${KUBECONFIG:?} # Required - tmp kubeconfig path resolves to $DASHBOARD_DIR/.tmp/kubeconfig
     tmpfs:
       - /tmp
 
@@ -90,24 +88,8 @@ services:
       --metric-resolution=5s
       --metric-duration=10m
     volumes:
-      - ${KUBECONFIG:?}:${KUBECONFIG:?}
+      - ${KUBECONFIG:?}:${KUBECONFIG:?} # Required - tmp kubeconfig path resolves to $DASHBOARD_DIR/.tmp/kubeconfig
     shm_size: 1G
-    tmpfs:
-      - /tmp
-
-  metrics-server:
-    container_name: metrics-server
-    image: registry.k8s.io/metrics-server/metrics-server:v0.7.0
-    command:
-      - "--cert-dir=/tmp"
-      - "--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname"
-      - "--metric-resolution=15s"
-      - "--kubelet-insecure-tls"
-      - "--authentication-kubeconfig=/.kube/config"
-      - "--authorization-kubeconfig=/.kube/config"
-      - "--kubeconfig=/.kube/config"
-    volumes:
-      - ${KUBECONFIG:?}:/.kube/config
     tmpfs:
       - /tmp
 
